@@ -152,6 +152,16 @@ const ASSETS = {"fundo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wB
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const W = 768, H = 490;
+// câmera: no celular em pé mostra um recorte maior do calçadão, seguindo o Doceiro
+const ZOOM_VIEW = { w: 420, h: 360 };
+let VW = W, VH = H, camX = 0, camY = 0, zoom = false;
+function applyView() {
+  zoom = typeof layout !== 'undefined' && layout === 'mobile' && matchMedia('(orientation: portrait)').matches;
+  VW = zoom ? ZOOM_VIEW.w : W; VH = zoom ? ZOOM_VIEW.h : H; camY = zoom ? H - VH : 0;
+  if (cv.width !== VW || cv.height !== VH) { cv.width = VW; cv.height = VH; }
+  cv.style.aspectRatio = `${VW} / ${VH}`;
+  if (!zoom) camX = 0;
+}
 const TOP = 322, BOTTOM = 484, LEFT = 30, RIGHT = 738;   // área onde os pés podem andar
 const DIRS = ['baixo', 'cima', 'direita', 'esquerda'];
 const CW = ASSETS.cw, CH = ASSETS.ch;
@@ -213,6 +223,7 @@ function reset() {
   items = []; enemies = []; cars = []; parts = []; popups = [];
   nextItem = 30; nextCafe = 360; nextEnemy = 240; nextCar = 200;
   p.x = -50; p.y = 410; p.dir = 'direita'; p.walk = 0; intro = true;   // entra andando pela esquerda
+  camX = 0;
 }
 reset();
 
@@ -244,7 +255,7 @@ addEventListener('keydown', e => {
   if (state !== 'play' && !e.repeat) start();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
-function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
+function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * VW / r.width + camX, y: (e.clientY - r.top) * VH / r.height + camY }; }
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   if (state !== 'play') { start(); return; }
@@ -275,9 +286,11 @@ function escolherModo(m) {
   layout = m;
   document.body.classList.toggle('mobile', m === 'mobile');
   escolha.hidden = true;
+  applyView();
   try { localStorage.setItem('sod_layout', m); } catch (e) {}
   initAudio();
 }
+addEventListener('resize', () => applyView());
 for (const b of document.querySelectorAll('.trocar')) b.addEventListener('click', () => {
   layout = null; escolha.hidden = false; keys.ArrowLeft = keys.ArrowRight = keys.ArrowUp = keys.ArrowDown = false;
   escolha.querySelector('.modo.rec').focus({ preventScroll: true });
@@ -541,7 +554,7 @@ function drawAlert(x, y) {
 }
 function drawEnemy(e) {
   if (e.mode === 'warn') {
-    drawAlert(e.dir > 0 ? 8 : W - 8 - img.alerta.width, e.y - 70);
+    drawAlert(e.dir > 0 ? camX + 8 : camX + VW - 8 - img.alerta.width, e.y - 70);
     return;
   }
   if (e.mode === 'ko') {
@@ -561,7 +574,7 @@ const CAR_SEQ = [0, 1, 2, 3, 2, 1];
 function drawCar(c) {
   const side = c.dir > 0 ? 'direita' : 'esquerda', info = CAR[side];
   if (c.warn > 0) {
-    drawAlert(c.dir > 0 ? 8 : W - 8 - img.alerta.width, c.y - 44);
+    drawAlert(c.dir > 0 ? camX + 8 : camX + VW - 8 - img.alerta.width, c.y - 44);
     return;
   }
   const f = CAR_SEQ[Math.floor(c.ph) % CAR_SEQ.length];
@@ -614,12 +627,18 @@ function drawHUD() {
     ctx.fillStyle = 'rgba(15,26,43,.6)'; ctx.fillRect(100, 40, 124, 12);
     ctx.fillStyle = '#ffd23f'; ctx.fillRect(102, 42, 120 * power / 360, 8);
   }
-  text(`RECORDE ${String(best).padStart(2, '0')}`, W - 14, 12, 12, '#ffd23f', 'right');
+  text(`RECORDE ${String(best).padStart(2, '0')}`, VW - 14, 12, 12, '#ffd23f', 'right');
 }
 
 function draw() {
   ctx.imageSmoothingEnabled = false;
-  if (loaded < KEYS.length) { ctx.fillStyle = '#4aa8f0'; ctx.fillRect(0, 0, W, H); text('CARREGANDO...', W / 2, 200, 14, '#fff'); return; }
+  if (loaded < KEYS.length) { ctx.fillStyle = '#4aa8f0'; ctx.fillRect(0, 0, VW, VH); text('CARREGANDO...', VW / 2, VH / 2 - 8, 14, '#fff'); return; }
+  if (zoom) {   // câmera acompanha o Doceiro, sem passar das bordas do calçadão
+    const target = clamp(p.x - VW / 2, 0, W - VW);
+    camX += (target - camX) * 0.12;
+  }
+  ctx.save();
+  ctx.translate(-Math.round(camX), -camY);
   ctx.drawImage(img.fundo, 0, 0);
 
   if (state === 'over') {
@@ -637,27 +656,44 @@ function draw() {
 
   for (const q of parts) { ctx.fillStyle = q.col; ctx.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s); }
   for (const u of popups) { ctx.globalAlpha = Math.min(1, u.life / 20); text(u.s, u.x, u.y, 14, u.col); ctx.globalAlpha = 1; }
+  ctx.restore();
+
+  // itens fora do enquadramento: setinha na borda
+  if (zoom && state === 'play') {
+    for (const o of items) {
+      const sx = o.x - camX, sy = clamp(o.y - camY - 24, 40, VH - 12);
+      if (sx > 6 && sx < VW - 6) continue;
+      const left = sx <= 6, x = left ? 6 : VW - 6;
+      ctx.fillStyle = o.kind === 'cafe' ? '#ffffff' : '#ffd23f';
+      ctx.beginPath();
+      if (left) { ctx.moveTo(x, sy); ctx.lineTo(x + 12, sy - 9); ctx.lineTo(x + 12, sy + 9); }
+      else { ctx.moveTo(x, sy); ctx.lineTo(x - 12, sy - 9); ctx.lineTo(x - 12, sy + 9); }
+      ctx.fill();
+    }
+  }
 
   if (state === 'play' || state === 'over') drawHUD();
   if (isTouch && state === 'play' && layout !== 'mobile') drawPad();
+  const coverH = Math.round(VW * 432 / 768);
   if (fade > 0) {   // capa sumindo por cima do jogo
     const a = fade / FADE;
     ctx.globalAlpha = a * a;
-    ctx.fillStyle = '#0f1a2b'; ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(img.capa, 0, 0, W, 432);
+    ctx.fillStyle = '#0f1a2b'; ctx.fillRect(0, 0, VW, VH);
+    ctx.drawImage(img.capa, 0, 0, VW, coverH);
     ctx.globalAlpha = 1;
   }
   if (state === 'menu') {
-    // capa ocupa a tela; faixa embaixo com o convite para jogar
-    ctx.fillStyle = '#0f1a2b'; ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(img.capa, 0, 0, W, 432);
-    if (Math.floor(t / 30) % 2 === 0) text('APERTE QUALQUER TECLA OU TOQUE', W / 2, 452, 12, '#ffd23f');
+    // capa ocupa a largura; faixa embaixo com o convite para jogar
+    ctx.fillStyle = '#0f1a2b'; ctx.fillRect(0, 0, VW, VH);
+    ctx.drawImage(img.capa, 0, 0, VW, coverH);
+    if (Math.floor(t / 30) % 2 === 0) text(zoom ? 'TOQUE PARA COMEÇAR' : 'APERTE QUALQUER TECLA OU TOQUE', VW / 2, coverH + (VH - coverH) / 2 - 7, 12, '#ffd23f');
   }
   if (state === 'over') {
-    ctx.fillStyle = 'rgba(15,26,43,.45)'; ctx.fillRect(0, 110, W, 120);
-    text('FIM DE JOGO', W / 2, 126, 24, '#ff7a3d');
-    text(`MAIS MAÇOS NA MÃO: ${peak}`, W / 2, 168, 12, '#fff4dc');
-    if (t - overAt > 40 && Math.floor(t / 30) % 2 === 0) text('APERTE PARA RECOMEÇAR', W / 2, 198, 12, '#fff4dc');
+    const oy = zoom ? 90 : 110;
+    ctx.fillStyle = 'rgba(15,26,43,.55)'; ctx.fillRect(0, oy, VW, 120);
+    text('FIM DE JOGO', VW / 2, oy + 16, 24, '#ff7a3d');
+    text(`MAIS MAÇOS NA MÃO: ${peak}`, VW / 2, oy + 58, 12, '#fff4dc');
+    if (t - overAt > 40 && Math.floor(t / 30) % 2 === 0) text(zoom ? 'TOQUE PARA RECOMEÇAR' : 'APERTE PARA RECOMEÇAR', VW / 2, oy + 88, 12, '#fff4dc');
   }
 }
 
