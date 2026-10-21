@@ -18,6 +18,7 @@
     --pixel: "Press Start 2P", ui-monospace, Menlo, monospace;
     color-scheme: dark;
   }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body {
     background: var(--bg); color: var(--ink); margin: 0;
@@ -50,24 +51,100 @@
   #wrap:fullscreen canvas { width: min(100vw, calc(100vh * 768 / 490)); border-radius: 0; }
   #wrap:-webkit-full-screen { max-width: none !important; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; }
   #wrap:-webkit-full-screen canvas { width: min(100vw, calc(100vh * 768 / 490)); border-radius: 0; }
+
+  /* ---------- tela de escolha: Desktop ou Mobile */
+  #escolha {
+    position: fixed; inset: 0; z-index: 20; background: var(--bg); overflow: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+  #escolha img { width: min(100%, 720px); max-height: 52vh; object-fit: contain; border-radius: 6px; }
+  #escolha h2 { margin: 0; font-size: 12px; font-weight: normal; letter-spacing: .08em; color: var(--ink); text-align: center; line-height: 1.6; }
+  .modos { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; width: min(100%, 720px); }
+  .modo {
+    flex: 1 1 200px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    font: 13px var(--pixel); color: var(--ink); background: var(--panel);
+    border: 3px solid #2a3d5c; border-radius: 6px; padding: 18px 14px; cursor: pointer;
+  }
+  .modo small { font-size: 8px; line-height: 1.6; color: var(--muted); }
+  .modo.rec { border-color: var(--accent); }
+  .modo.rec small { color: var(--accent); }
+  .modo:hover { background: #1f3452; }
+  .modo:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+  /* ---------- modo Mobile (Gameboy): jogo em cima, direcional embaixo */
+  #controles { display: none; }
+  body.mobile { gap: 0; padding-block: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-bottom, 0px)); }
+  body.mobile #wrap { max-width: none; margin-top: 0; }
+  body.mobile .hint, body.mobile .rotate, body.mobile .bar { display: none; }
+  body.mobile #controles {
+    display: flex; flex: 1; width: 100%; min-height: 230px;
+    flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  }
+  .ctrl-bar { display: flex; gap: 10px; }
+  #dpad {
+    --c: 64px;
+    display: grid; grid-template-columns: repeat(3, var(--c)); grid-template-rows: repeat(3, var(--c));
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    position: relative;
+  }
+  #dpad::before { content: ""; position: absolute; inset: -14px; border-radius: 50%; background: var(--panel); z-index: -1; }
+  #dpad .b { background: #262a38; border: 3px solid var(--ink); position: relative; }
+  #dpad .b::after { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 9px solid transparent; }
+  #dpad .up { grid-area: 1 / 2; border-bottom: 0; border-radius: 8px 8px 0 0; }
+  #dpad .up::after { border-bottom: 12px solid var(--ink); border-top: 0; }
+  #dpad .down { grid-area: 3 / 2; border-top: 0; border-radius: 0 0 8px 8px; }
+  #dpad .down::after { border-top: 12px solid var(--ink); border-bottom: 0; }
+  #dpad .left { grid-area: 2 / 1; border-right: 0; border-radius: 8px 0 0 8px; }
+  #dpad .left::after { border-right: 12px solid var(--ink); border-left: 0; }
+  #dpad .right { grid-area: 2 / 3; border-left: 0; border-radius: 0 8px 8px 0; }
+  #dpad .right::after { border-left: 12px solid var(--ink); border-right: 0; }
+  #dpad .mid { grid-area: 2 / 2; background: #262a38; border-block: 3px solid #262a38; }
+  #dpad .b.on { background: #ffd23f; }
+  /* celular deitado no modo Mobile: direcional à esquerda, jogo à direita */
+  @media (orientation: landscape) {
+    body.mobile { flex-direction: row; justify-content: center; align-items: center; gap: 18px; }
+    body.mobile #controles { order: -1; flex: 0 0 auto; width: auto; min-height: 0; }
+    body.mobile #wrap { flex: 0 0 auto; width: min(calc(100vw - 280px), calc((100vh - 20px) * 768 / 490)); }
+    body.mobile #dpad { --c: 58px; }
+  }
 </style>
 </head>
 <body>
 
 
+<div id="escolha" role="dialog" aria-label="Escolha onde jogar">
+  <img id="escolha-capa" alt="Streets of Doceiro">
+  <h2>ONDE VOCÊ VAI JOGAR?</h2>
+  <div class="modos">
+    <button type="button" class="modo" data-modo="desktop">DESKTOP<small>Teclado ou mouse</small></button>
+    <button type="button" class="modo" data-modo="mobile">MOBILE<small>Direcional na tela, estilo Gameboy</small></button>
+  </div>
+</div>
+
 <div id="wrap"><canvas id="c" width="768" height="490" tabindex="0" aria-label="Jogo Streets of Doceiro"></canvas></div>
 <div class="rotate">Vire o celular na horizontal para jogar maior</div>
 <div class="hint">
   <span><b>Setas</b> ou <b>WASD</b>: andar</span>
-  <span>No celular: use o <b>direcional</b> no canto da tela (dá pra deslizar o dedo para trocar de direção)</span>
+  <span>No celular: use o <b>direcional</b> no canto da tela, ou escolha o modo <b>Mobile</b></span>
   <span>Pegue maços, junte <b>3 cafés</b> para o poder</span>
   <span>Carro tira todos os maços, Cobrador leva metade. Sem maços, game over</span>
   <span>Com café, encoste no Cobrador para nocautear (+3)</span>
   <span>Carros só andam na rua: a calçada é segura</span>
 </div>
+<div id="controles">
+  <div id="dpad" aria-label="Direcional">
+    <span class="b up"></span><span class="b left"></span><span class="mid"></span><span class="b right"></span><span class="b down"></span>
+  </div>
+  <div class="ctrl-bar">
+    <button id="mute2" type="button" class="mute">SOM: LIGADO</button>
+    <button type="button" class="mute trocar">TROCAR MODO</button>
+  </div>
+</div>
 <div class="bar">
   <button id="full" type="button" class="mute" hidden>TELA CHEIA</button>
   <button id="mute" type="button" class="mute">SOM: LIGADO</button>
+  <button type="button" class="mute trocar">TROCAR MODO</button>
 </div>
 
 <script>
@@ -115,14 +192,14 @@ function startMusic() {
   musicSrc = actx.createBufferSource(); musicSrc.buffer = buffers.trilha; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start();
 }
 function stopMusic() { if (musicSrc) { try { musicSrc.stop(); } catch (e) {} musicSrc = null; } }
-const muteBtn = document.getElementById('mute');
-function paintMute() { muteBtn.textContent = muted ? 'SOM: DESLIGADO' : 'SOM: LIGADO'; muteBtn.setAttribute('aria-pressed', String(!muted)); }
+const muteBtns = [document.getElementById('mute'), document.getElementById('mute2')];
+function paintMute() { for (const b of muteBtns) { b.textContent = muted ? 'SOM: DESLIGADO' : 'SOM: LIGADO'; b.setAttribute('aria-pressed', String(!muted)); } }
 function toggleMute() {
   muted = !muted; paintMute();
   try { localStorage.setItem('doceiro_mute', muted ? '1' : '0'); } catch (e) {}
   if (muted) stopMusic(); else { initAudio(); if (state === 'play') startMusic(); }
 }
-muteBtn.addEventListener('click', toggleMute);
+for (const b of muteBtns) b.addEventListener('click', toggleMute);
 paintMute();
 
 // ---------- estado
@@ -159,6 +236,7 @@ function start() {
   else if (state === 'over' && t - overAt > 40) { state = 'play'; reset(); startMusic(); }
 }
 addEventListener('keydown', e => {
+  if (!layout) return;   // ainda na tela de escolha
   const k = e.code;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(k)) e.preventDefault();
   if (k === 'KeyM') { toggleMute(); return; }
@@ -182,6 +260,53 @@ cv.addEventListener('pointermove', e => {
 });
 const endTouch = e => { if (e.pointerType === 'mouse') touch = null; if (pad && e.pointerId === pad.id) pad = null; };
 cv.addEventListener('pointerup', endTouch); cv.addEventListener('pointercancel', endTouch);
+
+// ---------- escolha de layout (Desktop / Mobile)
+let layout = null;
+const escolha = document.getElementById('escolha');
+document.getElementById('escolha-capa').src = ASSETS.capa;
+const recomendado = matchMedia('(pointer: coarse)').matches ? 'mobile' : 'desktop';
+for (const b of escolha.querySelectorAll('.modo')) {
+  if (b.dataset.modo === recomendado) { b.classList.add('rec'); b.querySelector('small').textContent += ' · RECOMENDADO'; }
+  b.addEventListener('click', () => escolherModo(b.dataset.modo));
+}
+escolha.querySelector('.modo.rec').focus({ preventScroll: true });
+function escolherModo(m) {
+  layout = m;
+  document.body.classList.toggle('mobile', m === 'mobile');
+  escolha.hidden = true;
+  try { localStorage.setItem('sod_layout', m); } catch (e) {}
+  initAudio();
+}
+for (const b of document.querySelectorAll('.trocar')) b.addEventListener('click', () => {
+  layout = null; escolha.hidden = false; keys.ArrowLeft = keys.ArrowRight = keys.ArrowUp = keys.ArrowDown = false;
+  escolha.querySelector('.modo.rec').focus({ preventScroll: true });
+});
+
+// ---------- direcional do modo Mobile (fora da tela do jogo)
+const dpad = document.getElementById('dpad');
+const arms = { up: dpad.querySelector('.up'), down: dpad.querySelector('.down'), left: dpad.querySelector('.left'), right: dpad.querySelector('.right') };
+function dpadDir(e) {
+  const r = dpad.getBoundingClientRect();
+  const vx = e.clientX - (r.left + r.width / 2), vy = e.clientY - (r.top + r.height / 2);
+  if (Math.hypot(vx, vy) < r.width * 0.09) return { dx: 0, dy: 0 };
+  const a = Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) * Math.PI / 4;
+  return { dx: Math.round(Math.cos(a)), dy: Math.round(Math.sin(a)) };
+}
+function paintDpad() {
+  arms.up.classList.toggle('on', !!pad && pad.dy < 0); arms.down.classList.toggle('on', !!pad && pad.dy > 0);
+  arms.left.classList.toggle('on', !!pad && pad.dx < 0); arms.right.classList.toggle('on', !!pad && pad.dx > 0);
+}
+dpad.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (state !== 'play') start();
+  try { dpad.setPointerCapture(e.pointerId); } catch (err) {}
+  pad = { id: e.pointerId, ...dpadDir(e) }; paintDpad();
+});
+dpad.addEventListener('pointermove', e => { if (pad && pad.id === e.pointerId) { Object.assign(pad, dpadDir(e)); paintDpad(); } });
+const soltarDpad = e => { if (pad && pad.id === e.pointerId) { pad = null; paintDpad(); } };
+dpad.addEventListener('pointerup', soltarDpad); dpad.addEventListener('pointercancel', soltarDpad);
+dpad.addEventListener('contextmenu', e => e.preventDefault());
 
 // tela cheia (Android e PC; o iPhone não permite em páginas)
 const fullBtn = document.getElementById('full'), wrap = document.getElementById('wrap');
@@ -514,7 +639,7 @@ function draw() {
   for (const u of popups) { ctx.globalAlpha = Math.min(1, u.life / 20); text(u.s, u.x, u.y, 14, u.col); ctx.globalAlpha = 1; }
 
   if (state === 'play' || state === 'over') drawHUD();
-  if (isTouch && state === 'play') drawPad();
+  if (isTouch && state === 'play' && layout !== 'mobile') drawPad();
   if (fade > 0) {   // capa sumindo por cima do jogo
     const a = fade / FADE;
     ctx.globalAlpha = a * a;
